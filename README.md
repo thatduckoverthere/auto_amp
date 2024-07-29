@@ -6,3 +6,6 @@ Todo:
 - schematic
 - comments
 - pcb
+
+Dependecyes
+https://github.com/KeeganMartin/Dictionary

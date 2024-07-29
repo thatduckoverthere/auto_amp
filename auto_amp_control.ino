@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 #include "PinDefinitionsAndMore.h"
 #include <IRremote.hpp>
+#include <Dictionary.h>
 IRsend irsend;
 
 #define DECODE_DENON        // Includes Sharp
@@ -20,56 +21,62 @@ IRsend irsend;
 #define DECODE_MAGIQUEST
 #define DECODE_WHYNTER
 
+// Dictionary<String, int> protcol_dict;
 
+// //Set a value when key and value are String
+// protcol_dict.set("Panasonic", 0);
+// protcol_dict.set("LG", 1);
+// protcol_dict.set("NEC", 2);
+// protcol_dict.set("Samsung", 3);
+// protcol_dict.set("Sony", 4);
+// protcol_dict.set("RC5", 5);
+// protcol_dict.set("RC6",6);
+
+
+const bool pwr_recover = true;
 const int treshold = 23;
 const int time = 5;
 const int btn = 4;
-
 const int repeats = 4;
 //int PanasonicAddress = 0x1CA;
 //int PanasonicPower = 0x3D;
-int state = 0;
+
+bool state = 0;
 long unsigned int oldmilis;
 
 
+// [1,2,3=address][4,5,6=command][7=protocol]
 
 void saveCodes(int address, int command, const String& protocol) {
 
-    for (int ii = 0 ; ii < EEPROM.length()/2 ; ii++) {
-    EEPROM.write(0, 0);
-  }
+  //   for (int ii = 0 ; ii < EEPROM.length()/2 ; ii++) {
+  //   EEPROM.write(0, 0);
+  // }
 
-  EEPROM.put(0, address);
-  EEPROM.put(sizeof(int), command);
+
+  // store address
+  EEPROM.put(1, address);
+
+  // store command
+  EEPROM.put(4, command);
 
   byte protocolLength = protocol.length();
-  EEPROM.put(2 * sizeof(int), protocolLength);
-  
+  EEPROM.put(7, protocolLength);
+
   for (int i = 0; i < protocolLength; i++) {
-    EEPROM.put(2 * sizeof(int) + 1 + i, protocol[i]);
+    EEPROM.put(8 + i, protocol[i]);
   }
 }
 
 
-int getAddress() {
-  int adr;
-  EEPROM.get(0, adr);
-  return adr;
-}
-
-int getCommand() {
-  int cmd;
-  EEPROM.get(sizeof(int), cmd);
-  return cmd;
-}
 
 String getProtocol() {
   byte protocolLength;
-  EEPROM.get(2 * sizeof(int), protocolLength);
+  EEPROM.get(7, protocolLength);
   
   char protocolChars[protocolLength + 1];
   for (int i = 0; i < protocolLength; i++) {
-    EEPROM.get(2 * sizeof(int) + 1 + i, protocolChars[i]);
+    EEPROM.get(8 + i, protocolChars[i]);
   }
   protocolChars[protocolLength] = '\0';
   
@@ -86,6 +93,9 @@ void irRecord() {
         Serial.println(F("Received noise or an unknown protocol. \n Exiting."));
       } else {
         // Valid command received
+        Serial.println(IrReceiver.decodedIRData.address);
+        Serial.println(IrReceiver.decodedIRData.command);
+        Serial.println(IrReceiver.decodedIRData.protocol);
         saveCodes(IrReceiver.decodedIRData.address, IrReceiver.decodedIRData.command, getProtocolString(IrReceiver.decodedIRData.protocol));
         Serial.println("OK");
 
@@ -100,35 +110,39 @@ void irRecord() {
 void send(){
 
 
+  int sendAddress = EEPROM.get(1, sendAddress);
+  int sendCommand = EEPROM.get(4, sendCommand);
 
-    if (getProtocol() == "Panasonic"){
-      IrSender.sendPanasonic(getAddress(), getCommand(), repeats);
+  if (getProtocol() == "Panasonic"){
+    IrSender.sendPanasonic(sendAddress, sendCommand, repeats);
 
-    } else if (getProtocol() == "LG"){
-      IrSender.sendLG(getAddress(), getCommand(), repeats);
+  } else if (getProtocol() == "LG"){
+    IrSender.sendLG(sendAddress, sendCommand, repeats);
 
-    } else if (getProtocol() == "NEC"){
-      IrSender.sendNEC(getAddress(), getCommand(), repeats);
+  } else if (getProtocol() == "NEC"){
+    IrSender.sendNEC(sendAddress, sendCommand, repeats);
 
-    } else if (getProtocol() == "Samsung"){
-      IrSender.sendSamsung(getAddress(), getCommand(), repeats);
+  } else if (getProtocol() == "Samsung"){
+    IrSender.sendSamsung(sendAddress, sendCommand, repeats);
 
-    } else if (getProtocol() == "Sony"){
-      IrSender.sendSony(getAddress(), getCommand(), repeats);
-      
-    } else if (getProtocol() == "RC5"){
-      IrSender.sendRC5(getAddress(), getCommand(), repeats);
+  } else if (getProtocol() == "Sony"){
+    IrSender.sendSony(sendAddress, sendCommand, repeats);
+    
+  } else if (getProtocol() == "RC5"){
+    IrSender.sendRC5(sendAddress, sendCommand, repeats);
 
-    } else if (getProtocol() == "RC6"){
-      IrSender.sendRC6(getAddress(), getCommand(), repeats);
+  } else if (getProtocol() == "RC6"){
+    IrSender.sendRC6(sendAddress, sendCommand, repeats);
 
-    } else{
-      Serial.print("protocool not suported yet");
-    }
+  } else{
+    Serial.print("protocool not suported yet");
+  }
 
 
-  Serial.println(getAddress());
-  Serial.println(getCommand());
+  Serial.print("Address:");
+  Serial.println(sendAddress);
+  Serial.print("Command:");
+  Serial.println(sendCommand);
   Serial.println(getProtocol());
 }
 
@@ -193,81 +207,30 @@ void loop() {
   }
 
 
-
-
 }
 
 
 
-// v1.0
+// void saveCodes(int address, int command, const String& protocol) {
+
+//   //   for (int ii = 0 ; ii < EEPROM.length()/2 ; ii++) {
+//   //   EEPROM.write(0, 0);
+//   // }
 
 
-/*
+//   // store address
+//   EEPROM.write(1, address >> 8);
+//   EEPROM.write(2, address & 0xFF);
 
-#include <Arduino.h>
-#include "PinDefinitionsAndMore.h"
-#include <IRremote.hpp>
-IRsend irsend;
+//   // store command
+//   EEPROM.write(3, command >> 8);
+//   EEPROM.write(4, command & 0xFF);
 
-const int treshold = 23;
-const int time = 5;
-const int PanasonicAddress = 0x1CA;
-const int PanasonicPower = 0x3D;
+//   byte protocolLength = protocol.length();
+//   EEPROM.put(2 * sizeof(int), protocolLength);
 
-const int reprats = 4;
+//   for (int i = 0; i < protocolLength; i++) {
+//     EEPROM.put(2 * sizeof(int) + 1 + i, protocol[i]);
+//   }
+// }
 
-
-
-int state = 0;
-long unsigned int oldmilis;
-
-void turnOn(){
-  if(state == 0){
-    IrSender.sendPanasonic(PanasonicAddress, PanasonicPower, reprats);
-    state = 1;
-    Serial.println("Sending on");
-  }
-  else{
-    
-  }
-}
-
-void turnOff(){
-  if(state == 1){
-    IrSender.sendPanasonic(PanasonicAddress, PanasonicPower, reprats);
-    state = 0;
-    Serial.println("more than 5 seconds have pased");
-    Serial.println("Sending off");
-  }
-  else{
-
-  }
-}
-
-
-void setup() {
-  IrSender.begin();
-  Serial.begin(115200);
-  pinMode(A6, INPUT);
-}
-
-void loop() {
-
-  if(analogRead(A6) >= treshold){
-    oldmilis = millis();
-    Serial.print("Curent value:");
-    Serial.println(analogRead(A6));
-    delay(300);
-    turnOn();
-  }
-
-
-//checking if more than time has pased
-  if (time*1000 + oldmilis <= millis()){
-    turnOff();
-  }
-
-
-}
-
-*/
