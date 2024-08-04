@@ -21,23 +21,13 @@ IRsend irsend;
 #define DECODE_MAGIQUEST
 #define DECODE_WHYNTER
 
-// Dictionary<String, int> protcol_dict;
 
-// //Set a value when key and value are String
-// protcol_dict.set("Panasonic", 0);
-// protcol_dict.set("LG", 1);
-// protcol_dict.set("NEC", 2);
-// protcol_dict.set("Samsung", 3);
-// protcol_dict.set("Sony", 4);
-// protcol_dict.set("RC5", 5);
-// protcol_dict.set("RC6",6);
-
-
-const bool pwr_recover = true;
+const bool pwr_recover = false;// set true is amp remembers last state aftr power loss
 const int treshold = 23;
 const int time = 5;
 const int btn = 4;
 const int repeats = 4;
+const int intputL = A1;
 //int PanasonicAddress = 0x1CA;
 //int PanasonicPower = 0x3D;
 
@@ -47,12 +37,11 @@ long unsigned int oldmilis;
 
 // [1,2,3=address][4,5,6=command][7=protocol]
 
-void saveCodes(int address, int command, const String& protocol) {
+void saveCodes(int address, int command, int protocol) {
 
   //   for (int ii = 0 ; ii < EEPROM.length()/2 ; ii++) {
   //   EEPROM.write(0, 0);
   // }
-
 
   // store address
   EEPROM.put(1, address);
@@ -60,28 +49,9 @@ void saveCodes(int address, int command, const String& protocol) {
   // store command
   EEPROM.put(4, command);
 
-  byte protocolLength = protocol.length();
-  EEPROM.put(7, protocolLength);
-
-  for (int i = 0; i < protocolLength; i++) {
-    EEPROM.put(8 + i, protocol[i]);
-  }
+  EEPROM.put(7, protocol);
 }
 
-
-
-String getProtocol() {
-  byte protocolLength;
-  EEPROM.get(7, protocolLength);
-  
-  char protocolChars[protocolLength + 1];
-  for (int i = 0; i < protocolLength; i++) {
-    EEPROM.get(8 + i, protocolChars[i]);
-  }
-  protocolChars[protocolLength] = '\0';
-  
-  return String(protocolChars);
-}
 
 
 void irRecord() {
@@ -96,7 +66,7 @@ void irRecord() {
         Serial.println(IrReceiver.decodedIRData.address);
         Serial.println(IrReceiver.decodedIRData.command);
         Serial.println(IrReceiver.decodedIRData.protocol);
-        saveCodes(IrReceiver.decodedIRData.address, IrReceiver.decodedIRData.command, getProtocolString(IrReceiver.decodedIRData.protocol));
+        saveCodes(IrReceiver.decodedIRData.address, IrReceiver.decodedIRData.command, IrReceiver.decodedIRData.protocol);
         Serial.println("OK");
 
         commandReceived = true; // Set the flag to exit the loop
@@ -112,26 +82,27 @@ void send(){
 
   int sendAddress = EEPROM.get(1, sendAddress);
   int sendCommand = EEPROM.get(4, sendCommand);
+  int sendProtocol = EEPROM.get(7, sendProtocol);
 
-  if (getProtocol() == "Panasonic"){
+  if (getProtocolString(sendProtocol) == "Panasonic"){
     IrSender.sendPanasonic(sendAddress, sendCommand, repeats);
 
-  } else if (getProtocol() == "LG"){
+  } else if (getProtocolString(sendProtocol) == "LG"){
     IrSender.sendLG(sendAddress, sendCommand, repeats);
 
-  } else if (getProtocol() == "NEC"){
+  } else if (getProtocolString(sendProtocol) == "NEC"){
     IrSender.sendNEC(sendAddress, sendCommand, repeats);
 
-  } else if (getProtocol() == "Samsung"){
+  } else if (getProtocolString(sendProtocol) == "Samsung"){
     IrSender.sendSamsung(sendAddress, sendCommand, repeats);
 
-  } else if (getProtocol() == "Sony"){
+  } else if (getProtocolString(sendProtocol) == "Sony"){
     IrSender.sendSony(sendAddress, sendCommand, repeats);
     
-  } else if (getProtocol() == "RC5"){
+  } else if (getProtocolString(sendProtocol) == "RC5"){
     IrSender.sendRC5(sendAddress, sendCommand, repeats);
 
-  } else if (getProtocol() == "RC6"){
+  } else if (getProtocolString(sendProtocol) == "RC6"){
     IrSender.sendRC6(sendAddress, sendCommand, repeats);
 
   } else{
@@ -143,7 +114,8 @@ void send(){
   Serial.println(sendAddress);
   Serial.print("Command:");
   Serial.println(sendCommand);
-  Serial.println(getProtocol());
+  Serial.print("protocol:");
+  Serial.println(getProtocolString(sendProtocol));
 }
 
 
@@ -153,6 +125,9 @@ void turnOn(){
   if(state == 0){
     send();
     state = 1;
+    if(pwr_recover){
+      EEPROM.put(0, state);
+    }
     Serial.println("Sending on");
   }
   else{
@@ -164,8 +139,10 @@ void turnOff(){
   if(state == 1){
     send();
     state = 0;
-    Serial.println("more than 5 seconds have pased");
-    Serial.println("Sending off");
+    if(pwr_recover){
+      EEPROM.put(0, state);
+    }
+    Serial.println("more than 5 seconds have pased\nSending off");
   }
   else{
 
@@ -180,28 +157,34 @@ void setup() {
   pinMode(btn, INPUT_PULLUP);
   IrSender.begin();
   Serial.begin(115200);
-  pinMode(A6, INPUT);
+  pinMode(intputL, INPUT);
 
-
+  //enter recorting mode if button is pressed
   if(digitalRead(btn) == LOW){
     IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
     Serial.println("entering recording mode");
     irRecord();
   }
+
+  //if amp remembers last state get is from eprom
+  if(pwr_recover){
+    state = EEPROM.put(0, state);
+  }
 }
 
 void loop() {
 
-  if(analogRead(A6) >= treshold){
+  //while the input is higher than treshold refresh the timer 
+  if(analogRead(intputL) >= treshold){
     oldmilis = millis();
     Serial.print("Curent value:");
-    Serial.println(analogRead(A6));
+    Serial.println(analogRead(intputL));
     delay(300);
     turnOn();
   }
 
 
-  //checking if more than time has pased
+  //checking if more than time has pased since last timer refresh
   if (time*1000 + oldmilis <= millis()){
     turnOff();
   }
@@ -210,7 +193,7 @@ void loop() {
 }
 
 
-
+//old save rutine just in case
 // void saveCodes(int address, int command, const String& protocol) {
 
 //   //   for (int ii = 0 ; ii < EEPROM.length()/2 ; ii++) {

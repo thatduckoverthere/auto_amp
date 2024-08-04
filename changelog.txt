@@ -1,0 +1,9 @@
+29.04.2024
+	made schematic and pcb
+	improved eprom save rutine 
+
+05.05.2024
+	added power recovery support
+	eprom save uses less space
+	actual comments
+	some more prints
