@@ -22,12 +22,14 @@ IRsend irsend;
 #define DECODE_WHYNTER
 
 
-const bool pwr_recover = false;// set true is amp remembers last state aftr power loss
+const bool pwr_recover = false;// set true if amp remembers last state after power loss
 const int treshold = 23;
 const int time = 5;
 const int btn = 4;
 const int repeats = 4;
 const int intputL = A1;
+
+
 //int PanasonicAddress = 0x1CA;
 //int PanasonicPower = 0x3D;
 
